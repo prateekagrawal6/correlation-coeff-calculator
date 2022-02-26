@@ -16,10 +16,13 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
 
+/**
+ * Correlation finder service to calculate it's value using Pearson's method from apache common math3 library
+ */
 @Service
 public class CorrCoeffCalcService {
 
-    private  static final Logger logger = LoggerFactory.getLogger(CorrCoeffCalcService.class);
+    private static final Logger logger = LoggerFactory.getLogger(CorrCoeffCalcService.class);
 
     @Autowired
     private RestTemplate restTemplate;
@@ -27,37 +30,45 @@ public class CorrCoeffCalcService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    /**
+     * restBaseUrl from the application properties file
+     */
     @Value("${rest.base.url}")
     private String restBaseUrl;
 
-    public Double calculateByContinent( final String continent ) throws JsonProcessingException {
+    /**
+     * Method to determine the correlation coefficient value as per the continent provided
+     *
+     * @param continent
+     * @return a double value which can either be a code or the correlation coefficient from the pearson's method.
+     * @throws JsonProcessingException
+     */
+    public Double calculateByContinent(final String continent) throws JsonProcessingException {
         logger.info("Calculating Correlation Coefficient for the continent {} ", continent);
-        double result = 99;
+        double result = CorrCoeffCalcConstant.MAGIC_NUMBER_99;
         try {
-            result = computePearsonCorrelation(continent,'C');
-        }
-        catch ( Exception exception ) {
+            result = computePearsonCorrelation(continent, CorrCoeffCalcConstant.CHARACTER_C);
+        } catch (Exception exception) {
             logger.error("Exception occurred while calculating the correlation coefficient for the input {} ", continent, exception);
-            result = 500;
+            result = CorrCoeffCalcConstant.INTERNAL_SERVER_ERROR;
         }
         return result;
     }
 
-    public Double calculateByCountry( final String country ) throws JsonProcessingException {
+    public Double calculateByCountry(final String country) throws JsonProcessingException {
         logger.info("Calculating Correlation Coefficient for the continent {} ", country);
-        double result = 99;
+        double result = CorrCoeffCalcConstant.MAGIC_NUMBER_99;
         try {
-            result = computePearsonCorrelation(country,'A');
-        }
-        catch ( Exception exception ) {
+            result = computePearsonCorrelation(country, CorrCoeffCalcConstant.CHARACTER_A);
+        } catch (Exception exception) {
             logger.error("Exception occurred while calculating the correlation coefficient for the input {} ", country, exception);
-            result = 500;
+            result = CorrCoeffCalcConstant.INTERNAL_SERVER_ERROR;
         }
         return result;
     }
 
-    private double computePearsonCorrelation( final String input, final char option ) throws JsonProcessingException {
-        double result = 99;
+    private double computePearsonCorrelation(final String input, final char option) throws JsonProcessingException {
+        double result = CorrCoeffCalcConstant.MAGIC_NUMBER_99;
         Map<String, Double> vaccinatePercentageMap = getVaccinatedPercentageMap(input, option);
         Map<String, Double> resultingDeathPercentageMap = new HashMap<>(getDeathPercentageMap(input, option));
         resultingDeathPercentageMap.keySet().retainAll(vaccinatePercentageMap.keySet());
@@ -65,31 +76,30 @@ public class CorrCoeffCalcService {
         double[] resultingDeathPercentage = resultingDeathPercentageMap.values().stream().mapToDouble(value -> value).toArray();
         if (checkCorrelationCondition(vaccinatePercentage, resultingDeathPercentage))
             result = new PearsonsCorrelation().correlation(resultingDeathPercentage, vaccinatePercentage);
-        else
-        {
-            logger.info("calculated array mismatch with length {}, {}", vaccinatePercentage.length,resultingDeathPercentage.length);
+        else {
+            logger.info("calculated array mismatch with length {}, {}", vaccinatePercentage.length, resultingDeathPercentage.length);
         }
         return result;
     }
 
-    private boolean checkCorrelationCondition( final double[] array1, final double[] array2) {
+    private boolean checkCorrelationCondition(final double[] array1, final double[] array2) {
         boolean result = false;
-        if ( null != array1 && null != array2 && array1.length > 0 && array1.length == array2.length )
+        if (null != array1 && null != array2 && array1.length > 0 && array1.length == array2.length)
             result = true;
         return result;
     }
 
-    private Map<String, Double> getDeathPercentageMap( final String input, final Character option ) throws JsonProcessingException {
+    private Map<String, Double> getDeathPercentageMap(final String input, final Character option) throws JsonProcessingException {
         Map<String, Double> deathPercentageMap = new HashMap<String, Double>();
-        String API_END_POINT = option == 'A' ? CorrCoeffCalcConstant.CASES_API_COUNTRY : CorrCoeffCalcConstant.CASES_API_CONTINENT ;
+        String API_END_POINT = option == CorrCoeffCalcConstant.CHARACTER_A ? CorrCoeffCalcConstant.CASES_API_COUNTRY : CorrCoeffCalcConstant.CASES_API_CONTINENT;
         ResponseEntity<String> response = restTemplate.getForEntity(restBaseUrl + API_END_POINT + input, String.class);
-        if ( response.getStatusCode() == HttpStatus.OK ) {
+        if (response.getStatusCode() == HttpStatus.OK) {
             JsonNode root = objectMapper.readTree(response.getBody());
             root.iterator().forEachRemaining(jsonNode -> {
-                if ( jsonNode.get("All") != null && jsonNode.get("All").get("country") != null ) {
-                    String country = jsonNode.get("All").get("country").asText();
-                    double deaths = jsonNode.get("All").get("deaths").asDouble();
-                    double population = jsonNode.get("All").get("population").asDouble();
+                if (jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL) != null && jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_COUNTRY) != null) {
+                    String country = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_COUNTRY).asText();
+                    double deaths = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_DEATHS).asDouble();
+                    double population = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_POPULATION).asDouble();
                     deathPercentageMap.put(country, (deaths / population));
                 }
             });
@@ -98,18 +108,19 @@ public class CorrCoeffCalcService {
     }
 
 
-    private  Map<String, Double> getVaccinatedPercentageMap( final String input, final Character option ) throws JsonProcessingException {
+    private Map<String, Double> getVaccinatedPercentageMap(final String input, final Character option) throws JsonProcessingException {
         Map<String, Double> vaccinatedPercentageMap = new HashMap<>();
-        String API_END_POINT = option == 'A' ? CorrCoeffCalcConstant.VACCINES_API_COUNTRY : CorrCoeffCalcConstant.VACCINES_API_CONTINENT ;
-        ResponseEntity<String> response = restTemplate.getForEntity(restBaseUrl+ API_END_POINT + input, String.class);
-        if ( response.getStatusCode() == HttpStatus.OK ) {
+        String API_END_POINT = option == CorrCoeffCalcConstant.CHARACTER_A ? CorrCoeffCalcConstant.VACCINES_API_COUNTRY : CorrCoeffCalcConstant.VACCINES_API_CONTINENT;
+        ResponseEntity<String> response = restTemplate.getForEntity(restBaseUrl + API_END_POINT + input, String.class);
+        if (response.getStatusCode() == HttpStatus.OK) {
             JsonNode root = objectMapper.readTree(response.getBody());
             root.iterator().forEachRemaining(jsonNode -> {
                 System.out.println(jsonNode.toPrettyString());
-                if( jsonNode.get("All") != null && jsonNode.get("All").get("country") != null) {
-                    String country = jsonNode.get("All").get("country").asText();
-                    double people_vaccinated = jsonNode.get("All").get("people_vaccinated").asDouble();
-                    double population = jsonNode.get("All").get("population").asDouble();
+                if (jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL) != null && jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_COUNTRY) != null)
+                {
+                    String country = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_COUNTRY).asText();
+                    double people_vaccinated = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_PEOPLE_VACCINATED).asDouble();
+                    double population = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_POPULATION).asDouble();
                     vaccinatedPercentageMap.put(country, (people_vaccinated / population));
                 }
             });
