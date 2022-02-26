@@ -115,7 +115,6 @@ public class CorrCoeffCalcService {
         if (response.getStatusCode() == HttpStatus.OK) {
             JsonNode root = objectMapper.readTree(response.getBody());
             root.iterator().forEachRemaining(jsonNode -> {
-                System.out.println(jsonNode.toPrettyString());
                 if (jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL) != null && jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_COUNTRY) != null)
                 {
                     String country = jsonNode.get(CorrCoeffCalcConstant.PROPERTY_ALL).get(CorrCoeffCalcConstant.PROPERTY_COUNTRY).asText();
